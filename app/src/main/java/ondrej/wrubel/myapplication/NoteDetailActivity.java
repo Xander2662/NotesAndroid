@@ -1,21 +1,28 @@
 package ondrej.wrubel.myapplication;
 
+import android.content.ContentValues;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.net.Uri;
 import android.os.Bundle;
+import android.text.Editable;
+import android.text.TextWatcher;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.widget.EditText;
 import android.widget.TextView;
 import android.widget.Toast;
-import androidx.annotation.Nullable;
+
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
+import androidx.core.app.ActivityCompat;
+
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.Date;
@@ -29,29 +36,45 @@ public class NoteDetailActivity extends AppCompatActivity {
     private int noteId = -1;
 
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_notes_detail);
+        setContentView(R.layout.activity_note_detail); // Layout pro editaci poznámky
 
+        // Nastavení Toolbaru s menu_note_detail.xml (obsahuje i ikonu Show Map)
         Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle("Edit Note");
         setSupportActionBar(toolbar);
-        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        if(getSupportActionBar() != null)
+            getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        toolbar.inflateMenu(R.menu.menu_note_detail);
 
+        // Nastavení BottomNavigationView
         BottomNavigationView bottomNavigationView = findViewById(R.id.bottomNavigation);
         bottomNavigationView.setSelectedItemId(R.id.nav_notes);
         bottomNavigationView.setOnItemSelectedListener(item -> {
-            if (item.getItemId() == R.id.nav_notes) {
-                startActivity(new Intent(NoteDetailActivity.this, NotesListActivity.class));
-                finish();
+            if(item.getItemId() == R.id.nav_notes) {
+                autoSaveNote(() -> {
+                    Intent intent = new Intent(NoteDetailActivity.this, NotesListActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(intent);
+                    finish();
+                });
                 return true;
-            } else if (item.getItemId() == R.id.nav_add) {
-                startActivity(new Intent(NoteDetailActivity.this, AddNoteActivity.class));
-                finish();
+            } else if(item.getItemId() == R.id.nav_add) {
+                autoSaveNote(() -> {
+                    Intent intent = new Intent(NoteDetailActivity.this, AddNoteActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(intent);
+                    finish();
+                });
                 return true;
-            } else if (item.getItemId() == R.id.nav_tips) {
-                startActivity(new Intent(NoteDetailActivity.this, DestinationsActivity.class));
-                finish();
+            } else if(item.getItemId() == R.id.nav_tips) {
+                autoSaveNote(() -> {
+                    Intent intent = new Intent(NoteDetailActivity.this, DestinationsActivity.class);
+                    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+                    startActivity(intent);
+                    finish();
+                });
                 return true;
             }
             return false;
@@ -63,15 +86,25 @@ public class NoteDetailActivity extends AppCompatActivity {
         locationTextView = findViewById(R.id.textViewLocation);
         dbHelper = new NotesDBHelper(this);
 
+        // Načteme noteId z Intentu
         noteId = getIntent().getIntExtra("note_id", -1);
-        if (noteId != -1) {
+        if(noteId != -1){
             loadNoteFromDB(noteId);
         } else {
-            titleEditText.setText("");
-            descEditText.setText("");
-            timeTextView.setText("");
-            locationTextView.setText("");
+            Toast.makeText(this, "Note not found", Toast.LENGTH_SHORT).show();
+            finish();
         }
+
+        // Auto-save při úpravách (TextWatcher)
+        TextWatcher autoSaveWatcher = new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) { }
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                // Upravujeme pouze text – automaticky se uloží při opuštění aktivity
+            }
+            @Override public void afterTextChanged(Editable s) { }
+        };
+        titleEditText.addTextChangedListener(autoSaveWatcher);
+        descEditText.addTextChangedListener(autoSaveWatcher);
     }
 
     private void loadNoteFromDB(int id) {
@@ -80,7 +113,7 @@ public class NoteDetailActivity extends AppCompatActivity {
                 NotesDBHelper.COLUMN_ID + "=?",
                 new String[]{String.valueOf(id)},
                 null, null, null);
-        if (cursor != null && cursor.moveToFirst()) {
+        if(cursor != null && cursor.moveToFirst()){
             String title = cursor.getString(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_TITLE));
             String desc = cursor.getString(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_DESCRIPTION));
             long createdAt = cursor.getLong(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_CREATED_AT));
@@ -89,9 +122,39 @@ public class NoteDetailActivity extends AppCompatActivity {
             cursor.close();
             titleEditText.setText(title);
             descEditText.setText(desc);
+
             DateFormat dateFormat = new SimpleDateFormat("dd.MM.yyyy HH:mm", Locale.getDefault());
             timeTextView.setText(dateFormat.format(new Date(createdAt)));
             locationTextView.setText("Lat: " + latitude + ", Lon: " + longitude);
+        }
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        autoSaveNote(() -> {});
+    }
+
+    // Uloží změny poznámky (aktualizujeme pouze titulek a obsah; createdAt a poloha zůstávají)
+    private void autoSaveNote(@NonNull final Runnable onComplete) {
+        String title = titleEditText.getText().toString().trim();
+        String desc = descEditText.getText().toString().trim();
+
+        if(title.isEmpty() && desc.isEmpty()){
+            Toast.makeText(this, "Empty note deleted", Toast.LENGTH_SHORT).show();
+            SQLiteDatabase db = dbHelper.getWritableDatabase();
+            db.delete(NotesDBHelper.TABLE_NOTES, NotesDBHelper.COLUMN_ID + "=?",
+                    new String[]{String.valueOf(noteId)});
+            onComplete.run();
+        } else {
+            SQLiteDatabase db = dbHelper.getWritableDatabase();
+            ContentValues values = new ContentValues();
+            values.put(NotesDBHelper.COLUMN_TITLE, title);
+            values.put(NotesDBHelper.COLUMN_DESCRIPTION, desc);
+            db.update(NotesDBHelper.TABLE_NOTES, values,
+                    NotesDBHelper.COLUMN_ID + "=?",
+                    new String[]{String.valueOf(noteId)});
+            onComplete.run();
         }
     }
 
@@ -102,20 +165,19 @@ public class NoteDetailActivity extends AppCompatActivity {
     }
 
     @Override
-    public boolean onOptionsItemSelected(MenuItem item) {
-        int id = item.getItemId();
-        if (id == R.id.action_share) {
+    public boolean onOptionsItemSelected(@NonNull MenuItem item) {
+        int mid = item.getItemId();
+        if(mid == R.id.action_share){
             shareNote();
             return true;
-        } else if (id == R.id.action_delete) {
+        } else if(mid == R.id.action_delete){
             confirmDelete();
             return true;
-        } else if (id == R.id.action_show_map) {
+        } else if(mid == R.id.action_show_map){
             showMap();
             return true;
-        } else if (id == android.R.id.home) {
-            startActivity(new Intent(NoteDetailActivity.this, NotesListActivity.class));
-            finish();
+        } else if(mid == android.R.id.home){
+            onBackPressed();
             return true;
         }
         return super.onOptionsItemSelected(item);
@@ -136,16 +198,13 @@ public class NoteDetailActivity extends AppCompatActivity {
         new AlertDialog.Builder(this)
                 .setTitle("Smazat poznámku")
                 .setMessage("Opravdu chcete tuto poznámku smazat?")
-                .setCancelable(true)
                 .setPositiveButton("Ano", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
+                    @Override public void onClick(DialogInterface dialog, int which) {
                         deleteNote();
                     }
                 })
                 .setNegativeButton("Ne", new DialogInterface.OnClickListener() {
-                    @Override
-                    public void onClick(DialogInterface dialog, int which) {
+                    @Override public void onClick(DialogInterface dialog, int which) {
                         dialog.cancel();
                     }
                 })
@@ -153,49 +212,46 @@ public class NoteDetailActivity extends AppCompatActivity {
     }
 
     private void deleteNote() {
-        if (noteId != -1) {
-            SQLiteDatabase db = dbHelper.getWritableDatabase();
-            int rows = db.delete(NotesDBHelper.TABLE_NOTES, NotesDBHelper.COLUMN_ID + "=?",
-                    new String[]{String.valueOf(noteId)});
-            if (rows > 0) {
-                Toast.makeText(this, "Note deleted", Toast.LENGTH_SHORT).show();
-            }
+        SQLiteDatabase db = dbHelper.getWritableDatabase();
+        int rows = db.delete(NotesDBHelper.TABLE_NOTES, NotesDBHelper.COLUMN_ID + "=?",
+                new String[]{String.valueOf(noteId)});
+        if(rows > 0){
+            Toast.makeText(this, "Note deleted", Toast.LENGTH_SHORT).show();
         }
-        startActivity(new Intent(NoteDetailActivity.this, NotesListActivity.class));
         finish();
     }
 
     private void showMap() {
-        if (noteId != -1) {
-            SQLiteDatabase db = dbHelper.getReadableDatabase();
-            Cursor cursor = db.query(NotesDBHelper.TABLE_NOTES,
-                    new String[]{NotesDBHelper.COLUMN_LATITUDE, NotesDBHelper.COLUMN_LONGITUDE},
-                    NotesDBHelper.COLUMN_ID + "=?",
-                    new String[]{String.valueOf(noteId)}, null, null, null);
-            if (cursor != null && cursor.moveToFirst()) {
-                double lat = cursor.getDouble(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_LATITUDE));
-                double lon = cursor.getDouble(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_LONGITUDE));
-                cursor.close();
-                String location = "Lat:" + lat + " Lon:" + lon;
-                Uri geoUri = Uri.parse("geo:0,0?q=" + Uri.encode(location));
-                Intent mapIntent = new Intent(Intent.ACTION_VIEW, geoUri);
-                mapIntent.setPackage("com.google.android.apps.maps");
-                if (mapIntent.resolveActivity(getPackageManager()) != null) {
-                    startActivity(mapIntent);
-                } else {
-                    Toast.makeText(this, "Map application not available", Toast.LENGTH_SHORT).show();
-                }
+        SQLiteDatabase db = dbHelper.getReadableDatabase();
+        Cursor cursor = db.query(NotesDBHelper.TABLE_NOTES,
+                new String[]{NotesDBHelper.COLUMN_LATITUDE, NotesDBHelper.COLUMN_LONGITUDE},
+                NotesDBHelper.COLUMN_ID + "=?",
+                new String[]{String.valueOf(noteId)}, null, null, null);
+        if(cursor != null && cursor.moveToFirst()){
+            double lat = cursor.getDouble(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_LATITUDE));
+            double lon = cursor.getDouble(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_LONGITUDE));
+            cursor.close();
+            String location = "Lat:" + lat + " Lon:" + lon;
+            Uri geoUri = Uri.parse("geo:0,0?q=" + Uri.encode(location));
+            Intent mapIntent = new Intent(Intent.ACTION_VIEW, geoUri);
+            mapIntent.setPackage("com.google.android.apps.maps");
+            if(mapIntent.resolveActivity(getPackageManager()) != null){
+                startActivity(mapIntent);
             } else {
-                Toast.makeText(this, "No location data available", Toast.LENGTH_SHORT).show();
+                Toast.makeText(this, "Map application not available", Toast.LENGTH_SHORT).show();
             }
         } else {
-            Toast.makeText(this, "Note not saved yet", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, "No location data available", Toast.LENGTH_SHORT).show();
         }
     }
 
     @Override
     public void onBackPressed() {
-        startActivity(new Intent(NoteDetailActivity.this, NotesListActivity.class));
-        finish();
+        autoSaveNote(() -> {
+            Intent intent = new Intent(NoteDetailActivity.this, NotesListActivity.class);
+            intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(intent);
+            finish();
+        });
     }
 }

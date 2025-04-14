@@ -4,12 +4,15 @@ import android.content.Intent;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
+
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.widget.Toolbar;
 import androidx.recyclerview.widget.GridLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
+
 import com.google.android.material.bottomnavigation.BottomNavigationView;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -23,13 +26,13 @@ public class NotesListActivity extends AppCompatActivity {
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_notes_list);
+        setContentView(R.layout.activity_note_list);
 
         Toolbar toolbar = findViewById(R.id.toolbar);
         toolbar.setTitle(getString(R.string.app_name));
         setSupportActionBar(toolbar);
 
-        // Set up BottomNavigationView as before
+        // Nastavení BottomNavigationView
         BottomNavigationView bottomNavigationView = findViewById(R.id.bottomNavigation);
         bottomNavigationView.setSelectedItemId(R.id.nav_notes);
         bottomNavigationView.setOnItemSelectedListener(item -> {
@@ -48,8 +51,8 @@ public class NotesListActivity extends AppCompatActivity {
         });
 
         recyclerView = findViewById(R.id.recyclerViewNotes);
-        // Instead of a LinearLayoutManager, use a GridLayoutManager.
-        int noOfColumns = Utils.calculateNoOfColumns(this, 180); // Adjust desired column width (dp) as needed.
+        // Použijeme GridLayoutManager
+        int noOfColumns = Utils.calculateNoOfColumns(this, 180); // upravte podle potřeby
         GridLayoutManager gridLayoutManager = new GridLayoutManager(this, noOfColumns);
         recyclerView.setLayoutManager(gridLayoutManager);
 
@@ -61,6 +64,13 @@ public class NotesListActivity extends AppCompatActivity {
         recyclerView.setAdapter(adapter);
 
         dbHelper = new NotesDBHelper(this);
+        loadNotesFromDB();
+    }
+
+    // Pokaždé při návratu (onResume) načteme aktuální data z databáze
+    @Override
+    protected void onResume() {
+        super.onResume();
         loadNotesFromDB();
     }
 
