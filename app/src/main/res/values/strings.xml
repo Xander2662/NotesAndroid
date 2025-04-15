@@ -17,12 +17,12 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#000000</color>
     <color name="white">#FFFFFF</color>
-    <color name="colorPrimary">#FF5722</color> <!-- Deep Orange -->
-    <color name="colorPrimaryDark">#E64A19</color> <!-- Darker Orange -->
-    <color name="colorAccent">#FFC107</color> <!-- Amber -->
+    <color name="colorPrimary">#87986a</color> <!-- Deep Orange -->
+    <color name="colorPrimaryDark">#718355</color> <!-- Darker Orange -->
+    <color name="colorAccent">#e9f5db</color> <!-- Amber -->
 
-    <color name="backgroundColor">#00838F</color> <!-- White Background -->
-    <color name="surfaceColor">#F5F5F5</color> <!-- Light Gray Surface -->
+    <color name="backgroundColor">#b5c99a</color> <!-- White Background -->
+    <color name="surfaceColor">#cfe1b9</color> <!-- Light Gray Surface -->
 
     <color name="textPrimary">#212121</color> <!-- Dark Gray Text -->
     <color name="textSecondary">#757575</color> <!-- Medium Gray Text -->
