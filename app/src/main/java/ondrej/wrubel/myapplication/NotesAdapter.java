@@ -18,7 +18,7 @@ public class NotesAdapter extends RecyclerView.Adapter<NotesAdapter.NoteViewHold
     private final List<Note> notesList;
     private final OnItemClickListener listener;
     // Maximální délka zobrazeného popisu.
-    private static final int MAX_DESCRIPTION_LENGTH = 100;
+    private static final int MAX_DESCRIPTION_LENGTH = 110;
 
     public NotesAdapter(List<Note> notesList, OnItemClickListener listener) {
         this.notesList = notesList;

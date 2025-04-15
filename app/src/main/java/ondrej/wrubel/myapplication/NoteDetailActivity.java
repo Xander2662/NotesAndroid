@@ -135,7 +135,7 @@ public class NoteDetailActivity extends AppCompatActivity {
         autoSaveNote(() -> {});
     }
 
-    // Uloží změny poznámky (aktualizujeme pouze titulek a obsah; createdAt a poloha zůstávají)
+    // Uloží změny poznámky
     private void autoSaveNote(@NonNull final Runnable onComplete) {
         String title = titleEditText.getText().toString().trim();
         String desc = descEditText.getText().toString().trim();
@@ -226,24 +226,26 @@ public class NoteDetailActivity extends AppCompatActivity {
         Cursor cursor = db.query(NotesDBHelper.TABLE_NOTES,
                 new String[]{NotesDBHelper.COLUMN_LATITUDE, NotesDBHelper.COLUMN_LONGITUDE},
                 NotesDBHelper.COLUMN_ID + "=?",
-                new String[]{String.valueOf(noteId)}, null, null, null);
-        if(cursor != null && cursor.moveToFirst()){
+                new String[]{String.valueOf(noteId)},
+                null, null, null);
+        if (cursor != null && cursor.moveToFirst()) {
             double lat = cursor.getDouble(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_LATITUDE));
             double lon = cursor.getDouble(cursor.getColumnIndexOrThrow(NotesDBHelper.COLUMN_LONGITUDE));
             cursor.close();
-            String location = "Lat:" + lat + " Lon:" + lon;
-            Uri geoUri = Uri.parse("geo:0,0?q=" + Uri.encode(location));
+            // Vytvoříme URI ve tvaru: geo:lat,lon?q=lat,lon
+            Uri geoUri = Uri.parse("geo:" + lat + "," + lon + "?q=" + lat + "," + lon);
             Intent mapIntent = new Intent(Intent.ACTION_VIEW, geoUri);
-            mapIntent.setPackage("com.google.android.apps.maps");
-            if(mapIntent.resolveActivity(getPackageManager()) != null){
-                startActivity(mapIntent);
-            } else {
+            // Vytvoříme chooser, aby uživatel mohl vybrat aplikaci
+            try {
+                startActivity(Intent.createChooser(mapIntent, "Select a map application"));
+            } catch (Exception e) {
                 Toast.makeText(this, "Map application not available", Toast.LENGTH_SHORT).show();
             }
         } else {
             Toast.makeText(this, "No location data available", Toast.LENGTH_SHORT).show();
         }
     }
+
 
     @Override
     public void onBackPressed() {

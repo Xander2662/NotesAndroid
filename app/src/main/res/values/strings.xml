@@ -21,7 +21,7 @@
     <color name="colorPrimaryDark">#E64A19</color> <!-- Darker Orange -->
     <color name="colorAccent">#FFC107</color> <!-- Amber -->
 
-    <color name="backgroundColor">#FFFFFF</color> <!-- White Background -->
+    <color name="backgroundColor">#00838F</color> <!-- White Background -->
     <color name="surfaceColor">#F5F5F5</color> <!-- Light Gray Surface -->
 
     <color name="textPrimary">#212121</color> <!-- Dark Gray Text -->
